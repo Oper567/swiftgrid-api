@@ -4,11 +4,12 @@ import com.swiftgrid.api.model.Order;
 import com.swiftgrid.api.model.User;
 import com.swiftgrid.api.repository.OrderRepository;
 import com.swiftgrid.api.repository.UserRepository;
+import com.swiftgrid.api.service.PaystackService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.Optional;
 
 @RestController
@@ -21,15 +22,15 @@ public class WebhookController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private PaystackService paystackService;
+
     // Paystack will send a POST request here automatically
     @PostMapping("/paystack")
     public ResponseEntity<String> handlePaystackWebhook(@RequestBody String payload) {
         
         // In a real production app, we would verify Paystack's cryptographic signature here.
         // For our MVP, we will simulate a successful delivery webhook.
-        
-        // Let's pretend the payload tells us Order ID: a1b2c3d4... was delivered successfully.
-        // We will do a manual override endpoint to test the math.
         return ResponseEntity.ok("Webhook endpoint is live and listening!");
     }
 
@@ -48,23 +49,27 @@ public class WebhookController {
             return ResponseEntity.badRequest().body("Error: Package must be EN_ROUTE to be delivered.");
         }
 
-        User merchant = order.getCustomer(); // In a real flow, the order links directly to the product's merchant
-        User rider = order.getRider();
-
-        // THE MAGIC SPLIT (Assuming a ₦46,000 order)
-        // 1. Rider gets ₦800 delivery fee
-        rider.setWalletBalance(rider.getWalletBalance().add(new BigDecimal("800.00")));
+        // THE REAL PAYSTACK SPLIT (Assuming a ₦46,000 order)
         
-        // 2. Merchant gets ₦45,000 for the shoes
-        // (We are simplifying here; in reality we'd pull the merchant from the product table)
-        // merchant.setWalletBalance(merchant.getWalletBalance().add(new BigDecimal("45000.00"))); 
+        // 1. Move ₦800 to the Rider's real bank account (80000 kobo)
+        // Note: "RCP_1a2b3c" is a placeholder for the Rider's actual Paystack Recipient Code
+        boolean riderPaid = paystackService.sendMoney("RCP_1a2b3c", 80000, "SwiftGrid Delivery Fee - " + orderId);
+        
+        // 2. Move ₦45,000 to the Merchant's real bank account (4500000 kobo)
+        boolean merchantPaid = paystackService.sendMoney("RCP_9z8y7x", 4500000, "SwiftGrid Payout for Nike Air Force 1");
 
-        order.setStatus("DELIVERED");
+        // 3. Status Logic: Did Paystack accept the transfer?
+        if (riderPaid && merchantPaid) {
+            order.setStatus("DELIVERED_AND_PAID");
+        } else {
+            // If the bank transfer fails (which it will right now because our RCP codes are fake)
+            // we still mark it delivered so the rider can go home, but flag the payout for manual review.
+            order.setStatus("DELIVERED_PAYOUT_FAILED"); 
+        }
 
-        // Save everything to the database
-        userRepository.save(rider);
+        // Save the updated status to the PostgreSQL vault
         orderRepository.save(order);
 
-        return ResponseEntity.ok("Success: Package Delivered! ₦800 added to Rider's Wallet.");
+        return ResponseEntity.ok("Success: Package Delivered! Final Status: " + order.getStatus());
     }
 }
