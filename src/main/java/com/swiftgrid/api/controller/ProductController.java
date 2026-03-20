@@ -31,7 +31,7 @@ public class ProductController {
     // 2. FETCH CATALOG (Feeds your Flutter InventoryScreen)
     @GetMapping("/merchant/{merchantId}")
     public ResponseEntity<List<Product>> getMerchantProducts(@PathVariable String merchantId) {
-        List<Product> products = productRepository.findByMerchantId(merchantId);
+        List<Product> products = productRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId);
         return ResponseEntity.ok(products);
     }
 

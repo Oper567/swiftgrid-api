@@ -27,7 +27,7 @@ public class MerchantController {
     public ResponseEntity<?> getDashboardStats(@PathVariable String merchantId) {
         
         // 1. Get all products owned by this merchant
-        List<Product> products = productRepository.findByMerchantId(merchantId);
+        List<Product> products = productRepository.findByMerchantIdOrderByCreatedAtDesc(merchantId);
         
         // 2. In a real app, we'd filter orders by these products. 
         // For our MVP, let's just show the total successful payouts.
