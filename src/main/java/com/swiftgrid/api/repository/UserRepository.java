@@ -7,7 +7,13 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, String> {
-    // This magically writes the SQL query to find a user by their email
+public interface UserRepository extends JpaRepository<User, Long> {
+    
+    // Spring Boot is smart enough to write the SQL query automatically just from this method name!
+    // Translates to: SELECT * FROM users WHERE email = ?
     Optional<User> findByEmail(String email);
+    
+    boolean existsByEmail(String email);
+
+    
 }
